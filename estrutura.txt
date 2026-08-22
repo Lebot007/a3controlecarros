@@ -1,0 +1,12 @@
+projeto/
+│
+├── index.html
+├── style.css
+│
+└── js/
+    ├── config.js
+    ├── supabase.js
+    ├── banco.js
+    ├── simulacao.js
+    ├── ui.js
+    └── app.js
