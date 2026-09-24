@@ -1,0 +1,26 @@
+projeto/
+│
+├── index.html
+├── style.css
+│
+├── js/
+│   ├── config.js
+│   ├── supabase.js
+│   ├── banco.js
+│   ├── simulacao.js
+│   ├── ui.js
+│   └── app.js
+│
+└── database/
+    ├── parksim_schema.sql   (DDL + DML + DQL - script executavel do banco)
+    └── migracao_user_id.sql (migração: persistência por conta - user_id + RLS)
+│
+├── entrega/
+│   ├── ParkSim_A3_Apresentacao.pptx      (apresentação do projeto - slides)
+│   ├── ParkSim_A3_Apresentacao.pdf       (mesma apresentação em PDF)
+│   ├── ParkSim_A3_Documento_Projeto.docx (documento de projeto completo, c/ diagramas e SQL)
+│   └── imagens/
+│       ├── der.png          (modelagem conceitual - notação de Chen)
+│       ├── logico.png       (modelagem lógica - esquema relacional PK/FK)
+│       └── arquitetura.png  (arquitetura aplicação + Supabase)
+
