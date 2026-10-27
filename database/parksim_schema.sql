@@ -1,9 +1,13 @@
 -- =====================================================================
--- PARKSIM — Projeto de Banco de Dados
--- Disciplina: Banco de Dados
+-- PARKSIM — Projeto de Banco de Dados (ARQUIVO ÚNICO DA ENTREGA)
+-- Disciplina: Banco de Dados — Desafio A3 (trilha Oracle Academy)
 -- Tema: Estacionamento (entrada/saída de veículos monitorada)
--- Script executável: DDL + DML (carga inicial) + DQL (consultas)
--- SGBD: PostgreSQL (compatível com Supabase)
+-- Script executável de ponta a ponta:
+--   1. DDL  — CREATE TABLE, índices, TRIGGER e políticas RLS
+--   2. DDL  — Migração física idempotente (ALTER TABLE / CREATE INDEX)
+--   3. DML  — INSERT, UPDATE e DELETE (carga inicial fictícia)
+--   4. DQL  — SELECT com JOINs e agregações (relatórios estratégicos)
+-- SGBD: PostgreSQL (homologado em projeto Supabase)
 -- =====================================================================
 
 
@@ -62,7 +66,8 @@ create table vaga (
 );
 
 -- ---------------------------------------------------------------------
--- veiculo: veículo pertencente a um cliente (1 cliente : N veículos)
+-- veiculo: veículo pertencente a um cliente (1 cliente : N veículos).
+-- user_id vincula o registro à conta autenticada (Supabase Auth).
 -- ---------------------------------------------------------------------
 create table veiculo (
     id          serial primary key,
@@ -98,8 +103,8 @@ create table movimentacao (
 create index idx_movimentacao_sessao  on movimentacao(sessao);
 create index idx_movimentacao_veiculo on movimentacao(veiculo_id);
 create index idx_movimentacao_vaga    on movimentacao(vaga_id);
-create index idx_movimentacao_user    on movimentacao(user_id);
 create index idx_veiculo_user         on veiculo(user_id);
+create index idx_movimentacao_user    on movimentacao(user_id);
 
 -- ---------------------------------------------------------------------
 -- Regra de negócio automatizada no banco (TRIGGER):
@@ -127,15 +132,14 @@ end;
 $$ language plpgsql;
 
 create trigger trg_calcular_saida
-    before update on movimentacao
+    before insert or update on movimentacao
     for each row
     execute function fn_calcular_saida();
 
 -- ---------------------------------------------------------------------
 -- Segurança (Row Level Security) — usada pela aplicação Supabase:
--- tabelas de referência têm leitura pública; movimentação permite
--- inserir/atualizar/excluir publicamente (simulação), mas só o
--- administrador autenticado pode LER o relatório (painel travado).
+-- tabelas de referência e veículos têm leitura pública; a escrita e a
+-- leitura de movimentação são sempre da conta logada (user_id = auth.uid()).
 -- ---------------------------------------------------------------------
 alter table tipo_vaga     enable row level security;
 alter table cliente       enable row level security;
@@ -148,10 +152,9 @@ create policy leitura_publica_tipo_vaga   on tipo_vaga   for select using (true)
 create policy leitura_publica_cliente     on cliente     for select using (true);
 create policy leitura_publica_funcionario on funcionario for select using (true);
 create policy leitura_publica_vaga        on vaga        for select using (true);
+create policy leitura_publica_veiculo     on veiculo     for select using (true);
 
-create policy leitura_publica_veiculo  on veiculo for select using (true);
-
--- Escrita/apagamento vinculados à conta logada (user_id = auth.uid()):
+-- Escrita/leitura vinculadas à conta logada (user_id = auth.uid()):
 -- cada usuário só insere, atualiza, lê e apaga os próprios dados.
 create policy insercao_conta_veiculo on veiculo for insert
     with check (auth.uid() is not null and user_id = auth.uid());
@@ -167,7 +170,46 @@ create policy leitura_restrita_movimentacao on movimentacao for select
 
 
 -- =====================================================================
--- 2. DML — DATA MANIPULATION LANGUAGE (carga inicial fictícia)
+-- 2. DDL — MIGRAÇÃO FÍSICA IDEMPOTENTE (persistência por conta)
+-- =====================================================================
+-- Evolução aplicada ao banco publicado (e reproduzível em qualquer base):
+-- vincula os dados à conta autenticada sem quebrar a lógica existente.
+-- É ADITIVA e IDEMPOTENTE (ADD COLUMN IF NOT EXISTS / INDEX IF NOT
+-- EXISTS / DROP POLICY IF EXISTS): em uma base nova criada pela seção 1
+-- ela confirma o esquema; na base publicada ela foi a migração real,
+-- executada com sucesso no SQL Editor do Supabase.
+-- ---------------------------------------------------------------------
+
+-- 2.1 Colunas de conta (ALTER TABLE)
+alter table veiculo
+    add column if not exists user_id uuid references auth.users(id) on delete cascade;
+
+alter table movimentacao
+    add column if not exists user_id uuid references auth.users(id) on delete cascade;
+
+-- 2.2 Índices das novas colunas
+create index if not exists idx_veiculo_user      on veiculo(user_id);
+create index if not exists idx_movimentacao_user on movimentacao(user_id);
+
+-- 2.3 Remoção das políticas públicas de escrita antigas (se existirem):
+-- na base publicada havia políticas públicas de insert/update/delete;
+-- elas foram substituídas pelas políticas "por conta" da seção 1.
+drop policy if exists insercao_publica_movimentacao  on movimentacao;
+drop policy if exists atualizacao_publica_movimentacao on movimentacao;
+drop policy if exists leitura_publica_movimentacao   on movimentacao;
+drop policy if exists insercao_publica_veiculo       on veiculo;
+drop policy if exists exclusao_publica_veiculo       on veiculo;
+drop policy if exists atualizacao_publica_veiculo    on veiculo;
+
+-- 2.4 Verificação pós-migração (opcional, apenas consulta)
+-- select column_name from information_schema.columns
+--  where table_name in ('veiculo','movimentacao') and column_name = 'user_id';
+-- select policyname, cmd from pg_policies
+--  where tablename in ('veiculo','movimentacao') order by tablename, policyname;
+
+
+-- =====================================================================
+-- 3. DML — DATA MANIPULATION LANGUAGE (carga inicial fictícia)
 -- =====================================================================
 
 -- Tipos de vaga e respectivas tarifas por hora
@@ -231,6 +273,18 @@ values (
     'ESTACIONADO'
 );
 
+-- Terceira movimentação de homologação: veículo ainda estacionado
+-- (será finalizada pelo exemplo de UPDATE abaixo)
+insert into movimentacao (veiculo_id, vaga_id, funcionario_id, sessao, hora_entrada, status)
+values (
+    (select id from veiculo where placa = 'GHI7F89'),
+    (select id from vaga where numero = 3),
+    (select id from funcionario where cpf = '99999999999'),
+    1,
+    now() - interval '45 minutes',
+    'ESTACIONADO'
+);
+
 -- Exemplo de UPDATE (regra de negócio "manual", equivalente ao que a
 -- TRIGGER já faz automaticamente em produção): registra a saída de um
 -- veículo que ainda estava estacionado.
@@ -240,16 +294,27 @@ update movimentacao
  where veiculo_id = (select id from veiculo where placa = 'GHI7F89')
    and hora_saida is null;
 
--- Exemplo de DELETE: remove uma movimentação de teste indevida
--- (equivalente ao "Reiniciar" da simulação, que limpa a demonstração)
--- delete from movimentacao where sessao = 0;
+-- Exemplo de DELETE (executável): homologa a exclusão criando e removendo
+-- uma movimentação de teste (sessao 0), sem tocar na carga inicial.
+-- No site, o botão "Reiniciar" executa o equivalente por conta:
+-- delete from veiculo where user_id = auth.uid();  (CASCADE limpa movimentacao)
+insert into movimentacao (veiculo_id, vaga_id, funcionario_id, sessao, status)
+values (
+    (select id from veiculo where placa = 'GHI7F89'),
+    (select id from vaga where numero = 3),
+    (select id from funcionario where cpf = '99999999999'),
+    0,
+    'ESTACIONADO'
+);
+
+delete from movimentacao where sessao = 0;
 
 
 -- =====================================================================
--- 3. DQL — DATA QUERY LANGUAGE (consultas estratégicas com JOIN)
+-- 4. DQL — DATA QUERY LANGUAGE (consultas estratégicas com JOIN)
 -- =====================================================================
 
--- 3.1 Relatório completo da sessão atual (JOIN entre as 5 tabelas)
+-- 4.1 Relatório completo da sessão atual (JOIN entre as 6 tabelas)
 select
     m.id,
     v.placa,
@@ -272,7 +337,7 @@ join funcionario  f  on f.id  = m.funcionario_id
 where m.sessao = 1
 order by m.hora_entrada desc;
 
--- 3.2 Faturamento total por cliente no último mês
+-- 4.2 Faturamento total por cliente no último mês
 -- (equivalente ao exemplo do professor: "relatório que relacione as
 -- notas fiscais dos clientes no último mês")
 select
@@ -286,7 +351,7 @@ where m.hora_saida >= now() - interval '1 month'
 group by c.nome
 order by faturamento_total desc;
 
--- 3.3 Vaga mais utilizada (JOIN + COUNT + GROUP BY)
+-- 4.3 Vaga mais utilizada (JOIN + COUNT + GROUP BY)
 select
     vg.numero,
     tv.descricao   as tipo,
@@ -297,7 +362,7 @@ left join movimentacao m on m.vaga_id = vg.id
 group by vg.numero, tv.descricao
 order by vezes_utilizada desc;
 
--- 3.4 Tempo médio de permanência por tipo de vaga (JOIN + AVG + GROUP BY)
+-- 4.4 Tempo médio de permanência por tipo de vaga (JOIN + AVG + GROUP BY)
 select
     tv.descricao        as tipo_vaga,
     round(avg(m.tempo_minutos), 1) as tempo_medio_minutos
@@ -308,7 +373,7 @@ where m.tempo_minutos is not null
 group by tv.descricao
 order by tempo_medio_minutos desc;
 
--- 3.5 Funcionário que mais registrou movimentações (JOIN + COUNT)
+-- 4.5 Funcionário que mais registrou movimentações (JOIN + COUNT)
 select
     f.nome,
     f.cargo,
@@ -318,7 +383,7 @@ left join movimentacao m on m.funcionario_id = f.id
 group by f.nome, f.cargo
 order by total_atendimentos desc;
 
--- 3.6 Veículos atualmente estacionados, com dados do cliente (JOIN)
+-- 4.6 Veículos atualmente estacionados, com dados do cliente (JOIN)
 select
     v.placa,
     v.cor,
