@@ -321,8 +321,8 @@ export function exportarPDF(regs, sessao) {
         "2. INSERT (criação): ao entrar um veículo novo na simulação, o site faz um INSERT em 'veiculo' (se a placa ainda não existir) e um INSERT em 'movimentacao' com hora_entrada = now() e status 'ESTACIONADO'.",
         "3. UPDATE + TRIGGER (regra no banco): na saída, um UPDATE preenche hora_saida e status 'SAIU'; a TRIGGER 'trg_calcular_saida' calcula tempo_minutos e valor_cobrado automaticamente (usando a tarifa de tipo_vaga), sem lógica no front-end.",
         "4. SELECT com JOIN (consulta): o relatório junta movimentacao, veiculo, cliente, vaga e funcionario numa única consulta; este PDF aplica agregações COUNT (totais), AVG (tempo médio), SUM (faturamento) e GROUP BY (cor e vaga mais frequentes).",
-        "5. DELETE em cascata (ciclo de vida): ao reiniciar o teste ou recarregar a página, um DELETE em 'veiculo' remove (via ON DELETE CASCADE) as movimentações associadas, evitando acúmulo de dados de demonstração; as tabelas de cadastro (cliente, funcionario, vaga, tipo_vaga) são preservadas.",
-        "6. Segurança (Auth + RLS): o login usa Supabase Auth; políticas Row Level Security permitem INSERT/UPDATE na simulação, mas restringem o SELECT de 'movimentacao' ao administrador autenticado — por isso o painel fica travado sem login.",
+        "5. DELETE em cascata (ciclo de vida): ao clicar em Reiniciar, um DELETE em 'veiculo' remove apenas os veículos da conta logada e, via ON DELETE CASCADE, as movimentações associadas; recarregar a página não apaga nada, e as tabelas de cadastro (cliente, funcionario, vaga, tipo_vaga) são preservadas.",
+        "6. Segurança (Auth + RLS): o login usa Supabase Auth; políticas Row Level Security só permitem ler, inserir, atualizar e apagar registros da própria conta (user_id = auth.uid()) — por isso o painel fica travado sem login e visitantes não gravam dados.",
         "7. Persistência em nuvem: durante o teste, os registros ficam salvos no Supabase e podem ser inspecionados ao vivo no Table Editor, evidenciando o banco relacional real por trás da simulação.",
     ];
 
