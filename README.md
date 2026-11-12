@@ -17,6 +17,7 @@ Acesso administrativo (dados fictícios, uso de teste):
 | --- | --- |
 | `entrega/ParkSim_A3_Documento_Projeto.docx` | Documento de projeto: requisitos e regras de negócio, modelagem conceitual (DER), modelagem lógica e normalização (3FN), integridade referencial, SQL e diagramas |
 | `entrega/ParkSim_A3_Apresentacao.pptx` | Slides da apresentação final |
+| `entrega/ParkSim_Guia_Estrutura_Supabase.pdf` | Guia de estudo do grupo: tabelas, colunas, chaves, índices, function, trigger, políticas RLS, consultas e perguntas de treino |
 | `database/parksim_schema.sql` | Script `.sql` único e executável: DDL (CREATE/ALTER TABLE, índices, TRIGGER, RLS) + migração idempotente + DML (INSERT/UPDATE/DELETE) + DQL (SELECT com JOINs e agregações) |
 
 ## Estrutura
@@ -36,7 +37,8 @@ projeto/
 │   └── parksim_schema.sql      # script único do banco (DDL + migração + DML + DQL)
 └── entrega/
     ├── ParkSim_A3_Documento_Projeto.docx
-    └── ParkSim_A3_Apresentacao.pptx
+    ├── ParkSim_A3_Apresentacao.pptx
+    └── ParkSim_Guia_Estrutura_Supabase.pdf
 ```
 
 ## Banco de dados
