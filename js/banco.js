@@ -137,7 +137,10 @@ export async function registrarEntrada({ placa, cor, modelo, vaga, sessao, user_
         .insert([{ veiculo_id, vaga_id, funcionario_id, sessao, user_id, status: "ESTACIONADO" }]);
 }
 
-export async function registrarSaida(placa, sessao, user_id) {
+// minutosSimulados: permanência na simulação (1 s simulado = 1 min).
+// O site só informa hora_saida = hora_entrada + permanência; tempo_minutos
+// e valor_cobrado continuam sendo calculados pela TRIGGER no banco.
+export async function registrarSaida(placa, sessao, user_id, minutosSimulados) {
     if (!user_id) return { skipped: true };
 
     const { data: veiculo } = await supabase
@@ -149,11 +152,26 @@ export async function registrarSaida(placa, sessao, user_id) {
 
     if (!veiculo) return { error: "veiculo_nao_encontrado" };
 
-    return await supabase
+    const { data: aberta } = await supabase
         .from("movimentacao")
-        .update({ hora_saida: new Date().toISOString(), status: "SAIU" })
+        .select("id, hora_entrada")
         .eq("veiculo_id", veiculo.id)
         .eq("sessao", sessao)
+        .eq("user_id", user_id)
+        .is("hora_saida", null)
+        .order("hora_entrada", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (!aberta) return { error: "movimentacao_nao_encontrada" };
+
+    const minutos = Math.max(1, Math.round(Number(minutosSimulados) || 0));
+    const horaSaida = new Date(new Date(aberta.hora_entrada).getTime() + minutos * 60000);
+
+    return await supabase
+        .from("movimentacao")
+        .update({ hora_saida: horaSaida.toISOString(), status: "SAIU" })
+        .eq("id", aberta.id)
         .eq("user_id", user_id)
         .is("hora_saida", null);
 }

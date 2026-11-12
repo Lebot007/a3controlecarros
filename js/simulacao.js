@@ -63,6 +63,7 @@ export function criarSimulacao(ev) {
             cor: escolher(CONFIG.cores),
             modelo: escolher(CONFIG.modelos),
             vaga,
+            entrou: tempo,
             saiEm: tempo + aleatorio(...faixa),
         };
 

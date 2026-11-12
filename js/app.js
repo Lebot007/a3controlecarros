@@ -84,7 +84,8 @@ const simulacao = criarSimulacao({
     aoSairCarro: carro => {
         if (usuarioId) {
             banco
-                .registrarSaida(carro.placa, banco.getSessaoAtual(), usuarioId)
+                // 1 segundo de simulação = 1 minuto de permanência
+                .registrarSaida(carro.placa, banco.getSessaoAtual(), usuarioId, carro.momento - carro.entrou)
                 .then(refrescarRelatorio);
         }
 
